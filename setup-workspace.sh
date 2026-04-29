@@ -120,9 +120,12 @@ for _ in 1 2 3 4 5 6 7 8 9 10; do
     echo
     echo "To wire into Claude Desktop, add this to claude_desktop_config.json:"
     echo "  \"craft-${WORKSPACE}\": {"
-    echo "    \"command\": \"/opt/homebrew/bin/mcp-remote\","
-    echo "    \"args\": [\"http://localhost:${CRAFT_MCP_PORT}/mcp\"]"
+    echo "    \"command\": \"npx\","
+    echo "    \"args\": [\"-y\", \"mcp-remote\", \"http://localhost:${CRAFT_MCP_PORT}/mcp\", \"--allow-http\"]"
     echo "  }"
+    echo
+    echo "Note: uses npx so mcp-remote is fetched on demand — no global install"
+    echo "needed. --allow-http is required because the local MCP listens on plain HTTP."
     exit 0
   fi
   echo -n "."
