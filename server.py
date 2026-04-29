@@ -45,6 +45,14 @@ PORT = int(os.environ.get("CRAFT_MCP_PORT", "8003"))
 SERVER_NAME = os.environ.get("CRAFT_MCP_SERVER_NAME", "craft")
 SPEC_PATH = Path(os.environ.get("CRAFT_OPENAPI_PATH", HERE / "openapi.json"))
 
+# CRAFT_MCP_TOOL_SUFFIX: appended to every registered tool's MCP-facing name.
+# Lets multiple instances of this server (one per Craft workspace) coexist
+# in the same MCP client without tool-name collisions across connectors.
+# Applied to both the auto-generated OpenAPI tools (via operationId rewrite)
+# and the hand-written convenience tool below. Empty (default) preserves
+# upstream behavior bit-for-bit.
+TOOL_SUFFIX = os.environ.get("CRAFT_MCP_TOOL_SUFFIX", "")
+
 if not API_BASE:
     sys.exit("ERROR: CRAFT_API_BASE_URL is not set")
 if not API_KEY:
@@ -72,6 +80,53 @@ with SPEC_PATH.open("r", encoding="utf-8") as f:
 # Override the spec's hardcoded server URL with whatever's configured at runtime
 # (lets us point at a different Craft space without rewriting the JSON).
 openapi_spec["servers"] = [{"url": API_BASE}]
+
+
+def _generate_operation_id(method: str, path: str) -> str:
+    """Derive a short, snake_case operationId from HTTP method + path.
+
+    Craft's OpenAPI spec ships without operationIds, so FastMCP normally
+    auto-generates tool names. When TOOL_SUFFIX is set we need to control
+    the names ourselves so we can append the suffix predictably.
+
+    Path parameters are dropped (rather than emitted as `by_<param>`) to
+    keep names short — FastMCP/MCP truncates tool names beyond ~56 chars,
+    and Craft's longest path with its longest user suffix (e.g. _personal)
+    overflows otherwise. None of Craft's paths collide once parameters
+    are dropped, so the disambiguation isn't needed here. Examples:
+
+        GET /blocks                                     -> get_blocks
+        PUT /blocks/move                                -> put_blocks_move
+        DELETE /collections/{collectionId}/items        -> delete_collections_items
+    """
+    parts = [method.lower()]
+    for segment in path.strip("/").split("/"):
+        if not segment:
+            continue
+        # Skip path parameter placeholders — they balloon name length
+        # without disambiguating Craft's actual path set.
+        if segment.startswith("{") and segment.endswith("}"):
+            continue
+        parts.append(segment.replace("-", "_"))
+    return "_".join(parts)
+
+
+# If a tool suffix is configured, set operationIds for every operation so
+# FastMCP.from_openapi names the tools predictably (and we can append the
+# suffix). Empty suffix leaves the spec untouched — FastMCP uses its own
+# auto-derivation.
+if TOOL_SUFFIX:
+    HTTP_METHODS = ("get", "post", "put", "delete", "patch", "head", "options")
+    for path, path_item in openapi_spec.get("paths", {}).items():
+        if not isinstance(path_item, dict):
+            continue
+        for method, operation in path_item.items():
+            if method.lower() not in HTTP_METHODS:
+                continue
+            if not isinstance(operation, dict):
+                continue
+            base = operation.get("operationId") or _generate_operation_id(method, path)
+            operation["operationId"] = base + TOOL_SUFFIX
 
 
 @asynccontextmanager
@@ -160,7 +215,7 @@ def _flatten_block_to_markdown(node: Any) -> str:
 
 
 @mcp.tool(
-    name="craft_read_markdown",
+    name="craft_read_markdown" + TOOL_SUFFIX,
     description=(
         "Read a Craft document or block subtree as flattened markdown text "
         "ONLY — no block IDs, types, styling, decorations, or other JSON "

@@ -9,6 +9,12 @@
 #   CRAFT_API_KEY       — Bearer token of the form pdk_xxxxxxxx
 #   CRAFT_MCP_PORT      — local port (e.g. 8003)
 #
+# Optional in the env file:
+#   CRAFT_MCP_TOOL_SUFFIX  — appended to every registered tool name (e.g. "_jumbo")
+#                             so multiple instances of this server can run in the
+#                             same MCP client without colliding tool names. Empty
+#                             (default) preserves upstream behavior.
+#
 # CRAFT_MCP_SERVER_NAME defaults to "craft-<workspace-name>" if unset in the env file.
 #
 # This script is what the launchd plist invokes; it's also fine to run directly
