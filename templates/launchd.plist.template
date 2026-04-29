@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>__LABEL__</string>
+
+    <!-- Run start.sh with the workspace name. start.sh sources the env file
+         from ~/.mcp-credentials/craft-<workspace>.env. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>__REPO_ROOT__/start.sh</string>
+        <string>__WORKSPACE__</string>
+    </array>
+
+    <!-- Work from the repo root so $HERE in the scripts resolves correctly. -->
+    <key>WorkingDirectory</key>
+    <string>__REPO_ROOT__</string>
+
+    <!-- launchd gives login processes a minimal PATH; add Homebrew + system bins
+         so `uv` (Homebrew) and `lsof` (system) resolve. -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <!-- Start at login and keep alive if the process dies. -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- If the server crashes or the port is held by something else, don't hot-loop.
+         Wait 30s between restart attempts. -->
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <!-- Process log streams. Tail these when debugging:
+         tail -f /tmp/craft-mcp-__WORKSPACE__.out.log
+         tail -f /tmp/craft-mcp-__WORKSPACE__.err.log -->
+    <key>StandardOutPath</key>
+    <string>/tmp/craft-mcp-__WORKSPACE__.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/craft-mcp-__WORKSPACE__.err.log</string>
+</dict>
+</plist>

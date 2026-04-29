@@ -1,0 +1,25 @@
+# Per-machine generated artifacts. setup-workspace.sh writes plists into
+# ~/Library/LaunchAgents/, NOT into the repo, so usually nothing here needs
+# ignoring — but cover the bases:
+workspaces/
+*.plist.bak-*
+
+# uv / Python
+.venv/
+__pycache__/
+*.pyc
+
+# Editor
+.DS_Store
+.vscode/
+.idea/
+
+# Local credentials (defense in depth — they should live in ~/.mcp-credentials/,
+# not in the repo, but don't ship them by accident either)
+*.env
+!*.env.example
+.mcp-credentials/
+
+# Local backups
+*.bak
+*.bak-*
