@@ -53,6 +53,29 @@ SPEC_PATH = Path(os.environ.get("CRAFT_OPENAPI_PATH", HERE / "openapi.json"))
 # upstream behavior bit-for-bit.
 TOOL_SUFFIX = os.environ.get("CRAFT_MCP_TOOL_SUFFIX", "")
 
+# CRAFT_ACCOUNT_LABEL: human-readable account identifier prepended to every
+# tool's description. Critical for multi-account disambiguation — when an MCP
+# client has three Craft instances connected (Jumbo, XE Network, Personal),
+# the auto-generated tool descriptions are otherwise identical and semantic
+# search has nothing to pick from. Prepending "[Craft account: Jumbo] " makes
+# the right-account selection obvious to both LLMs and humans.
+#
+# Defaults are derived from TOOL_SUFFIX via a small slug table; override
+# explicitly with the env var if you want something more specific like
+# "Jumbo (justin@jumbo.live)".
+_SLUG_LABELS = {
+    "xe": "XE Network",
+    "jumbo": "Jumbo",
+    "personal": "Personal",
+}
+ACCOUNT_LABEL = os.environ.get("CRAFT_ACCOUNT_LABEL", "")
+if not ACCOUNT_LABEL and TOOL_SUFFIX:
+    _derived = TOOL_SUFFIX.lstrip("_").strip()
+    if _derived:
+        ACCOUNT_LABEL = _SLUG_LABELS.get(_derived, _derived.replace("_", " ").title())
+
+HTTP_METHODS = ("get", "post", "put", "delete", "patch", "head", "options")
+
 if not API_BASE:
     sys.exit("ERROR: CRAFT_API_BASE_URL is not set")
 if not API_KEY:
@@ -116,7 +139,6 @@ def _generate_operation_id(method: str, path: str) -> str:
 # suffix). Empty suffix leaves the spec untouched — FastMCP uses its own
 # auto-derivation.
 if TOOL_SUFFIX:
-    HTTP_METHODS = ("get", "post", "put", "delete", "patch", "head", "options")
     for path, path_item in openapi_spec.get("paths", {}).items():
         if not isinstance(path_item, dict):
             continue
@@ -127,6 +149,26 @@ if TOOL_SUFFIX:
                 continue
             base = operation.get("operationId") or _generate_operation_id(method, path)
             operation["operationId"] = base + TOOL_SUFFIX
+
+# If an account label is configured, prepend a "[Craft account: <label>] "
+# tag to every operation's description AND summary (FastMCP.from_openapi uses
+# whichever is present to build the tool's MCP-facing description). This runs
+# AFTER operationId rewrite but BEFORE FastMCP.from_openapi reads the spec.
+# The same prefix is applied to hand-written tools below.
+if ACCOUNT_LABEL:
+    _label_prefix = f"[Craft account: {ACCOUNT_LABEL}] "
+    for path, path_item in openapi_spec.get("paths", {}).items():
+        if not isinstance(path_item, dict):
+            continue
+        for method, operation in path_item.items():
+            if method.lower() not in HTTP_METHODS:
+                continue
+            if not isinstance(operation, dict):
+                continue
+            existing_desc = operation.get("description") or operation.get("summary") or ""
+            operation["description"] = _label_prefix + existing_desc
+            if operation.get("summary"):
+                operation["summary"] = _label_prefix + operation["summary"]
 
 
 @asynccontextmanager
@@ -217,7 +259,8 @@ def _flatten_block_to_markdown(node: Any) -> str:
 @mcp.tool(
     name="craft_read_markdown" + TOOL_SUFFIX,
     description=(
-        "Read a Craft document or block subtree as flattened markdown text "
+        (f"[Craft account: {ACCOUNT_LABEL}] " if ACCOUNT_LABEL else "")
+        + "Read a Craft document or block subtree as flattened markdown text "
         "ONLY — no block IDs, types, styling, decorations, or other JSON "
         "metadata. Token-efficient alternative to get_blocks: typically "
         "60–80% smaller than the raw JSON tree.\n"
@@ -284,4 +327,8 @@ if __name__ == "__main__":
     )
     print(f"[craft-mcp] base URL: {API_BASE}", flush=True)
     print(f"[craft-mcp] spec:     {SPEC_PATH}", flush=True)
+    if ACCOUNT_LABEL:
+        print(f"[craft-mcp] account label: {ACCOUNT_LABEL}", flush=True)
+    if TOOL_SUFFIX:
+        print(f"[craft-mcp] tool suffix:   {TOOL_SUFFIX}", flush=True)
     mcp.run(transport="http", host="0.0.0.0", port=PORT)

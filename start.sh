@@ -14,6 +14,11 @@
 #                             so multiple instances of this server can run in the
 #                             same MCP client without colliding tool names. Empty
 #                             (default) preserves upstream behavior.
+#   CRAFT_ACCOUNT_LABEL    — human-readable account name prepended to every tool's
+#                             description as "[Craft account: <label>] ...". Helps
+#                             MCP clients disambiguate the right workspace via
+#                             semantic search. Defaults to a derivation from
+#                             CRAFT_MCP_TOOL_SUFFIX if unset.
 #
 # CRAFT_MCP_SERVER_NAME defaults to "craft-<workspace-name>" if unset in the env file.
 #
